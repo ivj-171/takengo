@@ -7,6 +7,7 @@ const stripe = require('stripe')(process.env.STRIPE_KEY);
 
 const Product = require('../models/product');
 const Order = require('../models/order');
+const User=require('../models/user')
 
 const ITEMS_PER_PAGE = 2;
 
@@ -91,40 +92,40 @@ exports.getIndex = (req, res, next) => {
     });
 };
 
-exports.getCart = (req, res, next) => {
-  req.user
-    .populate('cart.items.productId')
-    .execPopulate()
-    .then(user => {
-      const products = user.cart.items;
+exports.getCart = async (req, res, next) => {
+   
+  try{ 
+
+    const user=await User.findById(req.session.user._id).populate('cart.items.productId').exec()
+   
+    const products=user.cart.items
+    
       res.render('shop/cart', {
         path: '/cart',
         pageTitle: 'Your Cart',
         products: products
-      });
-    })
-    .catch(err => {
+      })
+   }
+    catch(err ){
+      console.trace(err)
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.postCart = (req, res, next) => {
-  const prodId = req.body.productId;
-  Product.findById(prodId)
-    .then(product => {
-      return req.user.addToCart(product);
-    })
-    .then(result => {
-      console.log(result);
-      res.redirect('/cart');
-    })
-    .catch(err => {
+exports.postCart = async(req, res, next) => {
+  try {const prodId = req.body.productId;
+  const product=await Product.findById(prodId)
+  await req.user.addToCart(product);
+  res.redirect('/cart');}
+    
+    catch(err){
+      console.log("post error")
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
 exports.postCartDeleteProduct = (req, res, next) => {
@@ -142,9 +143,7 @@ exports.postCartDeleteProduct = (req, res, next) => {
 };
 
 exports.getCheckout = (req, res, next) => {
-  req.user
-    .populate('cart.items.productId')
-    .execPopulate()
+  User.findById(req.session.user._id).populate('cart.items.productId').exec()
     .then(user => {
       const products = user.cart.items;
       let total = 0;
@@ -169,9 +168,7 @@ exports.postOrder = (req, res, next) => {
   const token = req.body.stripeToken; 
   let totalSum = 0;
 
-  req.user
-    .populate('cart.items.productId')
-    .execPopulate()
+  User.findById(req.session.user._id).populate('cart.items.productId').exec()
     .then(user => {  
       user.cart.items.forEach(p => {
         totalSum += p.quantity * p.productId.price;
