@@ -15,9 +15,11 @@ const deleteProduct = btn => {
     })
     .then(data => {
       console.log(data);
-      productElement.parentNode.removeChild(productElement);
+      productElement.remove();
     })
     .catch(err => {
       console.log(err);
     });
 };
+const deleteBtn=document.getElementById('deleteBtn');
+deleteBtn.addEventListener('click',function(){deleteProduct(this)});
