@@ -9,7 +9,6 @@ const csrf = require('csurf');
 const flash = require('connect-flash');
 const multer = require('multer');
 require('dotenv').config();
-
 const errorController = require('./controllers/error');
 const shopController = require('./controllers/shop');
 const isAuth = require('./middleware/is-auth');
@@ -85,21 +84,22 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((req, res, next) => {
+app.use( async (req, res, next) => {
+  try{
   if (!req.session.user) {
     return next();
   }
-  User.findById(req.session.user._id)
-    .then(user => {
+  const user = await User.findById(req.session.user._id)
       if (!user) {
         return next();
       }
       req.user = user;
       next();
-    })
-    .catch(err => {
+    }
+  
+    catch(err){
       next(new Error(err));
-    });
+    };
 });
 
 app.post('/create-order', isAuth, shopController.postOrder);
@@ -126,13 +126,15 @@ app.use((error, req, res, next) => {
 });
 
 app.use(errorController.get404);
-mongoose
-  .connect(MONGODB_URI)
-  .then(result => {
-    app.listen(process.env.PORT||3000);
-  })
-  .catch(err => {
+async function connectdb(){
+  try{
+ await mongoose.connect(MONGODB_URI)
+ app.listen(process.env.PORT||3000);
+  }
+  catch(err){
     console.log(err);
-  });
+  }
+};
+connectdb();
 
   

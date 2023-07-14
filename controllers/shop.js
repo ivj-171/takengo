@@ -1,29 +1,20 @@
 const fs = require('fs');
 const path = require('path');
 const stripe = require('stripe')(process.env.STRIPE_KEY);
-
 const PDFDocument = require('pdfkit');
-
 const Product = require('../models/product');
 const Order = require('../models/order');
 const User = require('../models/user');
 
 const ITEMS_PER_PAGE = 2;
 
-exports.getProducts = (req, res, next) => {
+exports.getProducts = async (req, res, next) => {
+  try{
   const page = +req.query.page || 1;
-  let totalItems;
-
-  Product.find()
-    .countDocuments()
-    .then(numProducts => {
-      totalItems = numProducts;
-      return Product.find()
-        .skip((page - 1) * ITEMS_PER_PAGE)
-        .limit(ITEMS_PER_PAGE);
-    })
-    .then(products => {
-      res.render('shop/product-list', {
+  const numProducts = await Product.find().countDocuments()
+  let totalItems = numProducts;
+  const products = await Product.find().skip((page - 1) * ITEMS_PER_PAGE).limit(ITEMS_PER_PAGE);
+    res.render('shop/product-list', {
         prods: products,
         pageTitle: 'Products',
         path: '/products',
@@ -34,44 +25,37 @@ exports.getProducts = (req, res, next) => {
         previousPage: page - 1,
         lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
       });
-    })
-    .catch(err => {
+  }
+    catch(err){
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.getProduct = (req, res, next) => {
+exports.getProduct = async (req, res, next) => {
+  try{
   const prodId = req.params.productId;
-  Product.findById(prodId)
-    .then(product => {
+  const product = await Product.findById(prodId)
       res.render('shop/product-detail', {
         product: product,
         pageTitle: product.title,
         path: '/products'
       });
-    })
-    .catch(err => {
+  }
+    catch(err){
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.getIndex = (req, res, next) => {
+exports.getIndex = async (req, res, next) => {
+  try{
   const page = +req.query.page || 1;
-  let totalItems;
-
-  Product.find()
-    .countDocuments()
-    .then(numProducts => {
-      totalItems = numProducts;
-      return Product.find()
-        .skip((page - 1) * ITEMS_PER_PAGE)
-        .limit(ITEMS_PER_PAGE);
-    })
-    .then(products => {
+  const numProducts = await Product.find().countDocuments()
+    let totalItems = numProducts;
+  const products = await Product.find().skip((page - 1) * ITEMS_PER_PAGE).limit(ITEMS_PER_PAGE);
       res.render('shop/index', {
         prods: products,
         pageTitle: 'Shop',
@@ -83,76 +67,67 @@ exports.getIndex = (req, res, next) => {
         previousPage: page - 1,
         lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
       });
-    })
-    .catch(err => {
+    }
+    catch(err) {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.getCart = (req, res, next) => {
-  User.findById(req.session.user._id)
-    .populate('cart.items.productId')
-    .exec()
-    .then(user => {
-      const products = user.cart.items;
+exports.getCart = async (req, res, next) => {
+  try{
+ const user = await User.findById(req.session.user._id).populate('cart.items.productId').exec()
+ const products = user.cart.items;
       res.render('shop/cart', {
         path: '/cart',
         pageTitle: 'Your Cart',
         products: products
       });
-    })
-    .catch(err => {
+  }
+    catch(err){
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.postCart = (req, res, next) => {
+exports.postCart = async (req, res, next) => {
+  try{
   const prodId = req.body.productId;
-  Product.findById(prodId)
-    .then(product => {
-      return req.user.addToCart(product);
-    })
-    .then(result => {
-      console.log(result);
+  const product = await Product.findById(prodId)
+  await req.user.addToCart(product);
       res.redirect('/cart');
-    })
-    .catch(err => {
+    }
+    catch(err) {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.postCartDeleteProduct = (req, res, next) => {
+exports.postCartDeleteProduct = async (req, res, next) => {
+  try{
   const prodId = req.body.productId;
-  req.user
-    .removeFromCart(prodId)
-    .then(result => {
-      res.redirect('/cart');
-    })
-    .catch(err => {
+  await req.user.removeFromCart(prodId)
+    res.redirect('/cart');
+    }
+    catch(err){
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.getCheckout = (req, res, next) => {
-  let products;
+exports.getCheckout = async (req, res, next) => {
+  try{
   let total = 0;
-  User.findById(req.session.user._id)
-  .populate('cart.items.productId').exec()
-    .then(user => {
-      products = user.cart.items;
-      total = 0;
+  const user = await User.findById(req.session.user._id).populate('cart.items.productId').exec()
+  let products = user.cart.items;
       products.forEach(p => {
         total += p.quantity * p.productId.price;
       });
-      return stripe.checkout.sessions.create({
+  const session = await stripe.checkout.sessions.create({
              line_items: products.map(p => {
              return  {
               price_data: {
@@ -161,39 +136,34 @@ exports.getCheckout = (req, res, next) => {
               product_data: {
               name: p.productId.title,
               description: p.productId.description,
-            },
-          },
+                },
+              },
               quantity: p.quantity,
-        }
-      }),
-            mode: "payment",
-            success_url: req.protocol + "://" + req.get("host") + "/checkout/success",
-            cancel_url: req.protocol + "://" + req.get("host") + "/checkout/cancel",
-       });
-    })
-    .then(session => {
-      
+             }
+           }),
+             mode: "payment",
+             success_url: req.protocol + "://" + req.get("host") + "/checkout/success",
+             cancel_url: req.protocol + "://" + req.get("host") + "/checkout/cancel",
+          });
       res.render('shop/checkout', {
-        path: '/checkout',
-        pageTitle: 'Checkout',
-        products: products,
-        totalSum: total,
-        sessionId: session.id
+             path: '/checkout',
+             pageTitle: 'Checkout',
+             products: products,
+             totalSum: total,
+             sessionId: session.id
       });
-    })
-    .catch(err => {
+    }
+    catch(err) {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
     
-exports.getCheckoutSuccess = (req, res, next) => {
-  User.findById(req.session.user._id)
-    .populate('cart.items.productId')
-    .exec()
-    .then(user => {
-      const products = user.cart.items.map(i => {
+exports.getCheckoutSuccess = async (req, res, next) => {
+  try{
+  const user = await User.findById(req.session.user._id).populate('cart.items.productId').exec();
+  const products = user.cart.items.map(i => {
         return { quantity: i.quantity, product: { ...i.productId._doc } };
       });
       const order = new Order({
@@ -203,27 +173,21 @@ exports.getCheckoutSuccess = (req, res, next) => {
         },
         products: products
       });
-      return order.save();
-    })
-    .then(result => {
-      return req.user.clearCart();
-    })
-    .then(() => {
+    await order.save();
+    await req.user.clearCart();
       res.redirect('/orders');
-    })
-    .catch(err => {
+    }
+    catch(err) {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.postOrder = (req, res, next) => {
-  User.findById(req.session.user._id)
-    .populate('cart.items.productId')
-    .exec()
-    .then(user => {
-      const products = user.cart.items.map(i => {
+exports.postOrder = async (req, res, next) => {
+  try{
+  const user = await User.findById(req.session.user._id).populate('cart.items.productId').exec();
+  const products = user.cart.items.map(i => {
         return { quantity: i.quantity, product: { ...i.productId._doc } };
       });
       const order = new Order({
@@ -233,41 +197,37 @@ exports.postOrder = (req, res, next) => {
         },
         products: products
       });
-      return order.save();
-    })
-    .then(result => {
-      return req.user.clearCart();
-    })
-    .then(() => {
-      res.redirect('/orders');
-    })
-    .catch(err => {
+    await order.save();
+    await req.user.clearCart();
+    res.redirect('/orders');
+    }
+    catch(err){
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.getOrders = (req, res, next) => {
-  Order.find({ 'user.userId': req.user._id })
-    .then(orders => {
+exports.getOrders = async (req, res, next) => {
+  try{
+  const orders = await Order.find({ 'user.userId': req.user._id });
       res.render('shop/orders', {
         path: '/orders',
         pageTitle: 'Your Orders',
         orders: orders
       });
-    })
-    .catch(err => {
+    }
+    catch(err){
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.getInvoice = (req, res, next) => {
+exports.getInvoice = async (req, res, next) => {
+  try{
   const orderId = req.params.orderId;
-  Order.findById(orderId)
-    .then(order => {
+  const order = await Order.findById(orderId)
       if (!order) {
         return next(new Error('No order found.'));
       }
@@ -309,6 +269,6 @@ exports.getInvoice = (req, res, next) => {
 
       pdfDoc.end();
       
-    })
-    .catch(err => next(err));
+    }
+    catch(err){ next(err)};
 };

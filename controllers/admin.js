@@ -1,9 +1,6 @@
 const mongoose = require('mongoose');
-
 const fileHelper = require('../util/file');
-
 const { validationResult } = require('express-validator');
-
 const Product = require('../models/product');
 
 exports.getAddProduct = (req, res, next) => {
@@ -17,7 +14,8 @@ exports.getAddProduct = (req, res, next) => {
   });
 };
 
-exports.postAddProduct = (req, res, next) => {
+exports.postAddProduct = async (req, res, next) => {
+  try{
   const title = req.body.title;
   const image = req.file;
   const price = req.body.price;
@@ -55,9 +53,7 @@ exports.postAddProduct = (req, res, next) => {
       validationErrors: errors.array()
     });
   }
-
   const imageUrl = image.path;
-
   const product = new Product({
     title: title,
     price: price,
@@ -65,27 +61,26 @@ exports.postAddProduct = (req, res, next) => {
     imageUrl: imageUrl,
     userId: req.user
   });
-  product.save()
-    .then(result => {
-      res.redirect('/admin/products');
-    })
-    .catch(err => {
-     const error = new Error(err);
+  await product.save()
+  res.redirect('/admin/products');
+}
+  catch(err) {
+      const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    }
 };
 
-exports.getEditProduct = (req, res, next) => {
+exports.getEditProduct = async (req, res, next) => {
+  try{
   const editMode = req.query.edit;
   if (!editMode) {
     return res.redirect('/');
   }
   const prodId = req.params.productId;
-  Product.findById(prodId)
-    .then(product => {
+  const product = await Product.findById(prodId);
       if (!product) {
-        return res.redirect('/');
+      return res.redirect('/');
       }
       res.render('admin/edit-product', {
         pageTitle: 'Edit Product',
@@ -96,15 +91,17 @@ exports.getEditProduct = (req, res, next) => {
         errorMessage: null,
         validationErrors: []
       });
-    })
-    .catch(err => {
+    }
+    
+    catch(err) {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.postEditProduct = (req, res, next) => {
+exports.postEditProduct = async (req, res, next) => {
+  try{
   const prodId = req.body.productId;
   const updatedTitle = req.body.title;
   const updatedPrice = req.body.price;
@@ -130,9 +127,9 @@ exports.postEditProduct = (req, res, next) => {
     });
   }
 
-  Product.findById(prodId)
-    .then(product => {
-      if (product.userId.toString() !== req.user._id.toString()) {
+  const product = await Product.findById(prodId)
+      if (product.userId.toString() !== req.user._id.toString())
+       {
         return res.redirect('/');
       }
       product.title = updatedTitle;
@@ -142,46 +139,45 @@ exports.postEditProduct = (req, res, next) => {
         fileHelper.deleteFile(product.imageUrl);
         product.imageUrl = image.path;
       }
-      return product.save().then(result => {
+      await product.save()
         res.redirect('/admin/products');
-      });
-    })
-    .catch(err => {
+    }    
+    
+    catch(err) {
       const error = new Error(err);
       error.httpStatusCode = 500;
       return next(error);
-    });
+    };
 };
 
-exports.getProducts = (req, res, next) => {
-  Product.find({ userId: req.user._id })
-    .then(products => {
-      res.render('admin/products', {
+exports.getProducts = async (req, res, next) => {
+  try{
+  const products = await Product.find({ userId: req.user._id })
+  res.render('admin/products', {
         prods: products,
         pageTitle: 'Admin Products',
         path: '/admin/products'
-      });
-    })
-    .catch(err => {
-      const error = new Error(err);
-      error.httpStatusCode = 500;
-      return next(error);
-    });
-};
-
-exports.deleteProduct = async(req, res, next) => {
-  const prodId = req.params.productId;
-  try{
-       const product=await Product.findById(prodId);
-         if (!product) {
-             return next(new Error('Product not found.'));
-            }
-         fileHelper.deleteFile(product.imageUrl);
-         await Product.deleteOne({ _id: prodId, userId: req.user._id });
-           console.log('DESTROYED PRODUCT');
-           res.status(200).json({ message: 'Success!' });
+     });
     }
   catch(err){
-      res.status(500).json({ message: 'Deleting product failed.' });}
-    
+    const error = new Error(err);
+    error.httpStatusCode = 500;
+    return next(error);
+    };
 };
+
+exports.deleteProduct = async (req, res, next) => {
+   const prodId = req.params.productId;
+  try{
+   const product = await Product.findById(prodId);
+  if (!product) 
+  {
+   return next(new Error('Product not found.'));
+  }
+   fileHelper.deleteFile(product.imageUrl);
+  await Product.deleteOne({ _id: prodId, userId: req.user._id });
+   res.status(200).json({ message: 'Success!' });
+    }
+  catch(err){
+   res.status(500).json({ message: 'Deleting product failed.' });}
+  };

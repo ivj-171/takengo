@@ -5,6 +5,5 @@ const sessionId = orderBtn.parentNode.querySelector('[name=sessionId]').value;
 orderBtn.addEventListener('click', function() {
     stripe.redirectToCheckout({
         sessionId: sessionId
-
     });
 });
