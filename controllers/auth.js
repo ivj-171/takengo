@@ -2,19 +2,11 @@ const crypto = require('crypto');
 
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
-const sendgridTransport = require('nodemailer-sendgrid-transport');
 const { validationResult } = require('express-validator');
 
 const User = require('../models/user');
 
-const transporter = nodemailer.createTransport(
-  sendgridTransport({
-    auth: {
-      api_key:
-        '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'
-    }
-  })
-);
+
 
 exports.getLogin = (req, res, next) => {
   let message = req.flash('error');
@@ -93,9 +85,7 @@ exports.postLogin = (req, res, next) => {
           if (doMatch) {
             req.session.isLoggedIn = true;
             req.session.user = user;
-            console.log(req.session.isLoggedIn)
             return req.session.save(err => {
-              console.log(err);
               res.redirect('/');
             });
           }
@@ -183,41 +173,54 @@ exports.getReset = (req, res, next) => {
   });
 };
 
-exports.postReset = (req, res, next) => {
-  crypto.randomBytes(32, (err, buffer) => {
+exports.postReset = async (req, res, next) => {
+  try{
+  crypto.randomBytes(32,async (err, buffer) => {
+    
     if (err) {
       console.log(err);
       return res.redirect('/reset');
     }
     const token = buffer.toString('hex');
-    User.findOne({ email: req.body.email })
-      .then(user => {
-        if (!user) {
+    const user= await User.findOne({ email: req.body.email })
+     if (!user) {
           req.flash('error', 'No account with that email found.');
           return res.redirect('/reset');
         }
         user.resetToken = token;
         user.resetTokenExpiration = Date.now() + 3600000;
-        return user.save();
-      })
-      .then(result => {
+         user.save();
         res.redirect('/');
-        transporter.sendMail({
-          to: req.body.email,
-          from: 'shop@node-complete.com',
-          subject: 'Password reset',
-          html: `
-            <p>You requested a password reset</p>
-            <p>Click this <a href="http://localhost:3000/reset/${token}">link</a> to set a new password.</p>
-          `
-        });
-      })
-      .catch(err => {
+    const testAccount=await nodemailer.createTestAccount()
+    console.log('Ethereal SMTP Account:');
+    console.log(`  Email: ${testAccount.user}`);
+    console.log(`  Password: ${testAccount.pass}`);
+    const transporter=nodemailer.createTransport({
+           host: 'smtp.ethereal.email',
+           port: 587,
+           auth: {
+           user: testAccount.user,
+           pass: testAccount.pass
+          
+       }})
+        await transporter.sendMail({
+        to: req.body.email,
+        from: 'vijaykrishna6767@gmail.com',
+        subject: 'Password reset',
+        html: `
+          <p>You requested a password reset</p>
+          <p>Click this <a href="http://localhost:3000/reset/${token}">link</a> to set a new password.</p>
+        `
+      
+    })
+  })
+  }
+        catch(err ) {
         const error = new Error(err);
         error.httpStatusCode = 500;
         return next(error);
-      });
-  });
+      }
+  
 };
 
 exports.getNewPassword = (req, res, next) => {

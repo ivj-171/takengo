@@ -54,7 +54,15 @@ app.set('views', 'views');
 const adminRoutes = require('./routes/admin');
 const shopRoutes = require('./routes/shop');
 const authRoutes = require('./routes/auth');
-app.use(helmet());
+app.use(
+  helmet.contentSecurityPolicy({
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'frame-src': ["'self'", "https://js.stripe.com/"],
+      'script-src': ["'self'", "https://js.stripe.com/v3/"],
+    },
+  })
+);
 app.use(compression());
 
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -109,7 +117,7 @@ app.use(authRoutes);
 app.get('/500', errorController.get500);
 
 app.use((error, req, res, next) => {
-  console.log("apperror")
+  console.trace(error)
   res.status(500).render('500', {
     pageTitle: 'Error!',
     path: '/500',
