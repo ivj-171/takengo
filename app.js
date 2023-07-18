@@ -16,6 +16,8 @@ const User = require('./models/user');
 const helmet=require('helmet');
 const compression=require('compression');
 
+
+
 const MONGODB_URI =
 `mongodb+srv://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@cluster0.dlp0bqu.mongodb.net/${process.env.MONGO_DEFAULT_DATABASE}`;
 
@@ -24,16 +26,10 @@ const store = new MongoDBStore({
   uri: MONGODB_URI,
   collection: 'sessions'
 });
+
 const csrfProtection = csrf();
 
-const fileStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'images');
-  },
-  filename: (req, file, cb) => {
-    cb(null, file.originalname);
-  }
-});
+
 
 const fileFilter = (req, file, cb) => {
   if (
@@ -59,15 +55,18 @@ app.use(
       ...helmet.contentSecurityPolicy.getDefaultDirectives(),
       'frame-src': ["'self'", "https://js.stripe.com/"],
       'script-src': ["'self'", "https://js.stripe.com/v3/"],
+      'img-src': ["https://firebasestorage.googleapis.com"],
+      'object-src': ["'none'"],
     },
   })
 );
+
 app.use(compression());
 
 app.use(bodyParser.urlencoded({ extended: false }));
-app.use(multer({ storage: fileStorage, fileFilter: fileFilter }).single('image'));
+app.use(multer({ storage: multer.memoryStorage(), fileFilter: fileFilter }).single('image'));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/images', express.static(path.join(__dirname, 'images')));
+
 app.use(
   session({
     secret: 'my secret',
