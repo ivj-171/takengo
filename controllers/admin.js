@@ -2,7 +2,6 @@ const mongoose = require('mongoose');
 const admin = require('firebase-admin');
 
 require('dotenv').config();
-const fileHelper = require('../util/file');
 const { validationResult } = require('express-validator');
 const Product = require('../models/product');
 const serviceAccount = require(process.env.FIREBASE_ADMIN_SDK_CONFIG);
@@ -11,8 +10,10 @@ admin.initializeApp({
   storageBucket: 'ivj171-b9f4c.appspot.com',
 });
 
-// Initialize Google Cloud Storage client
 const storage = admin.storage();
+
+const bucket = storage.bucket();
+
 
 
 
@@ -68,7 +69,7 @@ exports.postAddProduct = async (req, res, next) => {
     }
 
     // Upload the file to Firebase Cloud Storage
-    const bucket = storage.bucket();
+   
     const firebaseFileName = Date.now() + '-' + file.originalname;
     const firebaseFile = bucket.file(firebaseFileName);
 
@@ -210,18 +211,43 @@ exports.getProducts = async (req, res, next) => {
     };
 };
 
+
 exports.deleteProduct = async (req, res, next) => {
-   const prodId = req.params.productId;
-  try{
-   const product = await Product.findById(prodId);
-  if (!product) 
-  {
-   return next(new Error('Product not found.'));
-  }
-   fileHelper.deleteFile(product.imageUrl);
-  await Product.deleteOne({ _id: prodId, userId: req.user._id });
-   res.status(200).json({ message: 'Success!' });
+  try {
+    const prodId = req.params.productId;
+    const product = await Product.findById(prodId);
+    if (!product) {
+      return next(new Error('Product not found.'));
     }
-  catch(err){
-   res.status(500).json({ message: 'Deleting product failed.' });}
-  };
+
+    function getFileNameFromUrl(imageUrl) {
+      const parts = imageUrl.split('/');
+      let fileNameWithParams = parts[parts.length - 1];
+      // If the URL contains query parameters, remove them
+      if (fileNameWithParams.includes('?')) {
+        fileNameWithParams = fileNameWithParams.split('?')[0];
+      }
+      // Decode the URL to handle any URL-encoded characters
+      const fileName = decodeURIComponent(fileNameWithParams);
+      return fileName;
+    }
+    
+    const fileName = getFileNameFromUrl(product.imageUrl);
+    console.log(fileName)
+    
+
+    const fileRef = bucket.file(fileName);
+
+    try {
+      await fileRef.delete();
+    } catch (error) {
+      console.error('Error deleting file:', error);
+    }
+
+    await Product.deleteOne({ _id: prodId, userId: req.user._id });
+    res.status(200).json({ message: 'Success!' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Deleting product failed.' });
+  }
+};

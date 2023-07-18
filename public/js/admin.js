@@ -5,13 +5,13 @@ const deleteProduct = btn => {
   const productElement = btn.closest('article');
   async function deletef(){
     try{
-  const result=await fetch('/admin/product/' + prodId, {
+  const result = await fetch('/admin/product/' + prodId, {
     method: 'DELETE',
     headers: {
       'csrf-token': csrf
     }
   })
-  const data= await result.json();
+  const data=await result.json();
   productElement.remove();
 }
   catch(err){
